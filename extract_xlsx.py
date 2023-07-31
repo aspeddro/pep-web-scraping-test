@@ -99,7 +99,7 @@ def main(headless: bool = True):
     if headless:
         options.add_argument("--headless=new")
 
-    driver = webdriver.Chrome(options=options)
+    driver = webdriver.Chrome("/usr/bin/chromedriver", options=options)
     driver.get(TARGET)
 
     # TODO(improve)
