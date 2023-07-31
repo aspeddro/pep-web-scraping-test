@@ -1,12 +1,9 @@
+from logging import raiseExceptions
 import sys
 import os
 import time
 from selenium import webdriver
-
-# from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.common.by import By
-from selenium.webdriver.support.wait import WebDriverWait
-from selenium.webdriver.support import expected_conditions
 
 TARGET = "http://painel.pep.planejamento.gov.br/QvAJAXZfc/opendoc.htm?document=painelpep.qvw&lang=en-US&host=Local&anonymous=true"
 
@@ -14,19 +11,8 @@ XPATHS = {
     # Cargos e Funções
     "card_home_funcoes": "/html/body/div[5]/div/div[88]",
     # Aba Tabelas
-    "tabelas": "/html/body/div[5]/div/div[280]/div[3]/table/tbody/tr/td",
-    "faca_voce_mesmo": "/html/body/div[6]/div/div[532]/div[2]/table/tbody/tr/td",
+    "tabelas": "/html/body/div[5]/div/div[280]/div[3]/table/tbody/tr/td"
 }
-
-# SELECTIONS = [
-#     # Seção
-#     {
-#         # "xpath": "/html/body/div[6]/div/div[259]/div[2]/div/div[1]/div[5]/div[2]/div[2]",
-#         "xpath": "/html/body/div[6]/div/div[259]/div[2]/div/div[1]/div[5]",
-#         "title": "Cargos e Funções",
-#     }
-# ]
-
 
 SELECTIONS = [
     "Mês Cargos",
@@ -65,19 +51,45 @@ SELECTIONS_DIMENSIONS = [
     "Sexo",
 ]
 
-SELECTIONS_METRICS = [
-    "DAS e correlatas",
-    "CCE & FCE",
-]
+SELECTIONS_METRICS = ["CCE & FCE", "DAS e correlatas"]
 
-DOWNLOAD_DIR = os.path.join(os.path.dirname(os.path.realpath(__file__)), "download")
+CWD = os.path.dirname(os.path.realpath(__file__))
 
-def exists_crdownload_file() -> bool:
-   files = os.listdir(DOWNLOAD_DIR)
-   some_crdownload = [file for file in files if file.endswith('.crdownload')]
-   return len(some_crdownload) > 0
+TMP_DIR = os.path.join(CWD, "tmp")
+DOWNLOAD_DIR = os.path.join(CWD, "downloads")
+
+def wait_file_download(year, timeout=60 * 6):
+    start_time = time.time()
+    end_time = start_time + timeout
+
+    file_exists = False
+
+    while not file_exists:
+        time.sleep(1.0)
+        if len(os.listdir(TMP_DIR)) > 0:
+            print(f"Time to download {year}, {time.time() - start_time} seconds")
+            break
+        if time.time() > end_time:
+            raise Exception(f"File not found {year} within time")
+        continue
+
+    return True
+
+def move_to_downloads(year: int) -> bool:
+    files = os.listdir(TMP_DIR)
+    assert len(files) == 1
+    src = os.path.join(TMP_DIR, files[0])
+    dest_file_name = str(year) + ".xlsx"
+    dest = os.path.join(DOWNLOAD_DIR, dest_file_name)
+    os.rename(src, dest)
+    assert os.path.exists(dest)
+    print(f"TMP_DIR: {len(os.listdir(TMP_DIR))}")
+    return True
+
 
 def main(headless: bool = True):
+    if not os.path.exists(TMP_DIR):
+        os.mkdir(TMP_DIR)
 
     if not os.path.exists(DOWNLOAD_DIR):
         os.mkdir(DOWNLOAD_DIR)
@@ -86,7 +98,7 @@ def main(headless: bool = True):
 
     # https://github.com/SeleniumHQ/selenium/issues/11637
     prefs = {
-        "download.default_directory": DOWNLOAD_DIR,
+        "download.default_directory": TMP_DIR,
         "download.prompt_for_download": False,
         "download.directory_upgrade": True,
         "safebrowsing.enabled": True,
@@ -104,9 +116,6 @@ def main(headless: bool = True):
 
     # TODO(improve)
     time.sleep(10)
-    # WebDriverWait(driver, TIMEOUT).until(
-    #     expected_conditions.presence_of_element_located((By.XPATH, XPATHS["card_home_funcoes"]))
-    # )
 
     home_element = driver.find_element(By.XPATH, XPATHS["card_home_funcoes"])
 
@@ -115,20 +124,12 @@ def main(headless: bool = True):
     home_element.click()
 
     time.sleep(15.0)
-    # WebDriverWait(driver, TIMEOUT).until(
-    #     expected_conditions.presence_of_element_located((By.XPATH, XPATHS["tabelas"]))
-    # )
 
     tab_tabelas_element = driver.find_element(By.XPATH, XPATHS["tabelas"])
 
     assert tab_tabelas_element.is_displayed()
 
     tab_tabelas_element.click()
-
-    # time.sleep(3)
-    # WebDriverWait(driver, TIMEOUT + 20).until(
-    #     expected_conditions.presence_of_element_located((By.XPATH, XPATHS["faca_voce_mesmo"]))
-    # )
 
     time.sleep(4)
 
@@ -150,8 +151,7 @@ def main(headless: bool = True):
     ]
     assert len(valid_selections) == len(SELECTIONS)
 
-    # TODO: nem sempre mes e cargos e selecionado
-    # Mês e Cargos
+    # NOTE: nem sempre mes e cargos esta selecionado
     first_selection_title = valid_selections[0].get_attribute("title")
     valid_selections[0].click()
     print(f"{first_selection_title=}")
@@ -165,27 +165,27 @@ def main(headless: bool = True):
     _, *rest_dimensions_selections = SELECTIONS_DIMENSIONS
     dimensions_selected: list[str] = []
 
-    # for _ in range(0, 2):
-    #     # DOM changes
-    #     time.sleep(5.0)
-    #     elements = driver.find_elements(By.CLASS_NAME, "QvExcluded_LED_CHECK_363636")
-    #     head, *_ = [
-    #         selection
-    #         for selection in elements
-    #         if selection.get_attribute("title") in rest_dimensions_selections
-    #         and selection.get_attribute("title") not in dimensions_selected
-    #     ]
+    for _ in range(0, len(rest_dimensions_selections)):
+        # DOM changes
+        time.sleep(5.0)
+        elements = driver.find_elements(By.CLASS_NAME, "QvExcluded_LED_CHECK_363636")
+        head, *_ = [
+            selection
+            for selection in elements
+            if selection.get_attribute("title") in rest_dimensions_selections
+            and selection.get_attribute("title") not in dimensions_selected
+        ]
 
-    #     title = head.get_attribute("title")
-    #     assert isinstance(title, str)
+        year_title = head.get_attribute("title")
+        assert isinstance(year_title, str)
 
-    #     head.click()
-    #     dimensions_selected.append(title)
-    #     print(f"Click for {title=}")
+        head.click()
+        dimensions_selected.append(year_title)
+        # print(f"Click for {year_title=}")
 
-    # print(
-    #     f"Selections for dimensions, {len(dimensions_selected)}, {dimensions_selected=}"
-    # )
+    print(f"Selections for dimensions, {dimensions_selected=}")
+
+    time.sleep(5.0)
 
     metrics_selection = [
         selection
@@ -198,85 +198,122 @@ def main(headless: bool = True):
     metrics_selection[0].click()
     print("CCE &  FCE clicked")
 
-    time.sleep(10)
+    time.sleep(3.0)
 
-    # WebDriverWait(driver, 30).until(
-    #     expected_conditions.presence_of_element_located(
-    #         (By.CLASS_NAME, "QvFrame Document_CH339")
-    #     )
-    # )
+    _, *rest_metrics_selections = SELECTIONS_METRICS
+    metrics_selected: list[str] = []
 
-    # time.sleep(10.0)
+    for _ in range(0, len(rest_metrics_selections)):
+        # DOM changes
+        time.sleep(5.0)
+        elements = driver.find_elements(By.CLASS_NAME, "QvExcluded_LED_CHECK_363636")
+        head, *_ = [
+            selection
+            for selection in elements
+            if selection.get_attribute("title") in rest_metrics_selections
+            and selection.get_attribute("title") not in metrics_selected
+        ]
 
-    # das_elements = driver.find_elements(
-    #         By.CLASS_NAME, "QvExcluded_LED_CHECK_363636"
-    # )
-    # das = [
-    #     selection
-    #     for selection in das_elements
-    #     if selection.get_attribute("title") == "DAS e correlatas"
-    # ]
+        metric_title = head.get_attribute("title")
+        assert isinstance(metric_title, str)
 
-    # print(f"{das=}, {das_elements=}")
+        head.click()
+        metrics_selected.append(metric_title)
+        # print(f"Click for {year_title=}")
 
-    # for i in das_elements:
-    #     try:
-    #         title = i.get_attribute("title")
-    #         print(f"{title}")
-    #     except:
-    #         print("Invalid")
-
-    # das[0].click()
-
-    # time.sleep(5)
-
-    menu_ano = [
-        selection
-        for selection in driver.find_elements(By.TAG_NAME, "div")
-        if selection.get_attribute("title") == "Ano (total)"
-    ]
-    print(f"{menu_ano}")
-
-    menu_ano[0].click()
-
-    # WebDriverWait(driver, 30).until(
-    #     expected_conditions.presence_of_element_located(
-    #         (By.CLASS_NAME, "QvFrame Document_CH339")
-    #     )
-    # )
+    print(f"Selections for metrics, {metrics_selected=}")
 
     time.sleep(3.0)
-    anos = [
-        element
-        for element in driver.find_elements(By.CLASS_NAME, "QvOptional")
-        if element.get_attribute("title") in ["2023"]
-    ]
 
-    print(f"{len(anos)=}")
+    def open_menu_years():
+        years_elements = [
+            selection
+            for selection in driver.find_elements(By.TAG_NAME, "div")
+            if selection.get_attribute("title") == "Ano (total)"
+        ]
+        assert len(years_elements) > 0
+        years_elements[0].click()
 
-    anos[0].click()
+    def element_select_year(year: int):
+        elements = [
+            element
+            for element in driver.find_elements(By.CLASS_NAME, "QvOptional")
+            if element.get_attribute("title") is not None
+        ]
 
-    time.sleep(10)
+        for e in elements:
+            title = e.get_attribute("title")
+            if title is not None and int(title) == year:
+                return e
 
-    download = [
-        element
-        for element in driver.find_elements(By.CLASS_NAME, "QvCaptionIcon")
-        if element.get_attribute("title") == "Send to Excel"
-    ]
+        raise Exception(
+            f"Failed to select year {year}. Found {elements=}"
+        )
 
-    download[0].click()
+    def wait_hide_popup_element():
+        popup_element_visible = True
 
-    # wait_for_download = True
+        while popup_element_visible:
+            elements_visible = [
+                e
+                for e in driver.find_elements(By.CLASS_NAME, "popupMask")
+                if e.get_attribute("style") is not None
+                and "display: block" in e.get_attribute("style")
+            ]
+            if len(elements_visible) == 0:
+                break
 
-    # while wait_for_download:
-    #     if exists_crdownload_file():
-    #         continue
-    #     else:
-    #         break
+        return True
 
-    time.sleep(10)
+    year_star = 2022
+    year_end = 2023
 
+    years = range(year_star, year_end + 1)
+
+    for year in years:
+        time.sleep(3.0)
+
+        open_menu_years()
+
+        time.sleep(3.0)
+
+        element_year = element_select_year(year)
+
+        element_year.click()
+
+        time.sleep(10)
+
+        download = [
+            element
+            for element in driver.find_elements(By.CLASS_NAME, "QvCaptionIcon")
+            if element.get_attribute("title") == "Send to Excel"
+        ]
+
+        download[0].click()
+
+        if wait_file_download(year):
+            move_to_downloads(year)
+            print(f"Download done for {year}")
+            modal = driver.find_element(By.CLASS_NAME, "ModalDialog")
+            modal.click()
+            print("Modal Clicked")
+            wait_hide_popup_element()
+            remove_selected_year = [
+                e
+                for e in driver.find_elements(By.CLASS_NAME, "QvSelected")
+                if e.get_attribute("title") is not None
+                and e.get_attribute("title") == str(year)
+            ]
+            remove_selected_year[0].click()
+
+            continue
+        else:
+            raise Exception(f"Failed to download xlsx for {year}")
+
+    time.sleep(2.0)
     print("Done")
+
+    print(f"Files: {os.listdir(DOWNLOAD_DIR)}")
     driver.close()
 
 
