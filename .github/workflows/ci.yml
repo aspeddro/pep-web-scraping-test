@@ -14,13 +14,15 @@ jobs:
           sudo mv chromedriver /usr/bin/chromedriver
           sudo chown root:root /usr/bin/chromedriver
           sudo chmod +x /usr/bin/chromedriver
-          chromedriver --version
+
+      - name: Driver version
+        run: chromedriver --version
 
       - uses: actions/setup-python@v4
         with:
           python-version: '3.9'
       - run: pip install -r requirements.txt
-      - run: python extract_xlsx.py
+      - run: python extract_xlsx.py --headless
 
 
       - name: ls
