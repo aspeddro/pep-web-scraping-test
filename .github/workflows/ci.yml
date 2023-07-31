@@ -14,6 +14,7 @@ jobs:
           sudo mv chromedriver /usr/bin/chromedriver
           sudo chown root:root /usr/bin/chromedriver
           sudo chmod +x /usr/bin/chromedriver
+          chromedriver --version
 
       - uses: actions/setup-python@v4
         with:
