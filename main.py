@@ -264,7 +264,7 @@ if __name__ == "__main__":
 
     setup_web_driver()
 
-    main(headless=headless, year_start=1999, year_end=2001)
+    main(headless=False, year_start=1999, year_end=2001)
 
     files = os.listdir(constants.OUTPUT_DIR.value)
     log(f"Files: {files}")
