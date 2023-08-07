@@ -21,4 +21,4 @@ RUN python3 -m pip install -r requirements.txt
 
 COPY extract_xlsx.py /extract_xlsx.py
 
-ENTRYPOINT ["python3", "/extract_xlsx.py", "--headless"]
+ENTRYPOINT ["python3", "/main.py", "--headless"]

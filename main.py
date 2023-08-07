@@ -4,127 +4,40 @@ import time
 import requests
 import zipfile
 import io
-import pandas as pd
+import datetime
+
 from selenium import webdriver
-from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
 
-TARGET = "http://painel.pep.planejamento.gov.br/QvAJAXZfc/opendoc.htm?document=painelpep.qvw&lang=en-US&host=Local&anonymous=true"
+from constants import constants
 
-XPATHS = {
-    # Cargos e Funções
-    "card_home_funcoes": "/html/body/div[5]/div/div[88]",
-    # Aba Tabelas
-    "tabelas": "/html/body/div[5]/div/div[280]/div[3]/table/tbody/tr/td",
-}
-
-SELECTIONS = [
-    "Mês Cargos",
-    "Natureza Juridica",
-    "Orgão Superior",
-    "Orgão",
-    "Tipo de Função Detalhada",
-    "Função",
-    "Nível Função",
-    "Subnível Função",
-    "Região",
-    "UF",
-    "Nome Cor Origem Etnica",
-    "Faixa Etária",
-    "Escolaridade do Servidor",
-    "Sexo",
-    # Métricas
-    "DAS e correlatas",
-    "CCE & FCE",
-]
-
-SELECTIONS_DIMENSIONS = [
-    "Mês Cargos",
-    "Natureza Juridica",
-    "Orgão Superior",
-    "Orgão",
-    "Tipo de Função Detalhada",
-    "Função",
-    "Nível Função",
-    "Subnível Função",
-    "Região",
-    "UF",
-    "Nome Cor Origem Etnica",
-    "Faixa Etária",
-    "Escolaridade do Servidor",
-    "Sexo",
-]
-
-SELECTIONS_METRICS = ["CCE & FCE", "DAS e correlatas"]
-
-CWD = os.path.dirname(os.path.realpath(__file__))
-
-TMP_DIR = os.path.join(CWD, "tmp")
-DOWNLOAD_DIR = os.path.join(CWD, "downloads")
-
-CHROME_DRIVER = (
-    "https://chromedriver.storage.googleapis.com/114.0.5735.90/chromedriver_linux64.zip"
-)
-
+from utils import wait_file_download, move_from_tmp_dir, log
 
 def setup_web_driver() -> None:
-    r = requests.get(CHROME_DRIVER, stream=True)
+    r = requests.get(constants.CHROME_DRIVER.value, stream=True)
     with zipfile.ZipFile(io.BytesIO(r.content)) as z:
-        z.extractall(TMP_DIR)
+        z.extractall(constants.PATH.value)
 
-    os.environ["PATH"] += os.pathsep + TMP_DIR
-
-    path = os.environ["PATH"]
-
-    files = os.listdir(TMP_DIR)
-
-    print(files)
-
-    print(f"Setup Web Driver done: {path}")
+    os.environ["PATH"] += os.pathsep + constants.PATH.value
 
 
-def wait_file_download(year, timeout=60 * 6):
-    start_time = time.time()
-    end_time = start_time + timeout
+def main(
+    headless: bool = True, year_start: int = 1999, year_end: int = datetime.now().year
+) -> None:
+    if not os.path.exists(constants.PATH.value):
+        os.mkdir(constants.PATH.value)
 
-    file_exists = False
+    if not os.path.exists(constants.TMP_DATA_DIR.value):
+        os.mkdir(constants.TMP_DATA_DIR.value)
 
-    while not file_exists:
-        time.sleep(1.0)
-        if len(os.listdir(TMP_DIR)) > 0:
-            print(f"Time to download {year}, {time.time() - start_time} seconds")
-            break
-        if time.time() > end_time:
-            raise Exception(f"File not found {year} within time")
-        continue
-
-    return True
-
-
-def move_to_downloads(year: int) -> bool:
-    files = os.listdir(TMP_DIR)
-    assert len(files) == 1
-    src = os.path.join(TMP_DIR, files[0])
-    dest_file_name = str(year) + ".xlsx"
-    dest = os.path.join(DOWNLOAD_DIR, dest_file_name)
-    os.rename(src, dest)
-    assert os.path.exists(dest)
-    print(f"TMP_DIR: {len(os.listdir(TMP_DIR))}")
-    return True
-
-
-def main(headless: bool = True):
-    if not os.path.exists(TMP_DIR):
-        os.mkdir(TMP_DIR)
-
-    if not os.path.exists(DOWNLOAD_DIR):
-        os.mkdir(DOWNLOAD_DIR)
+    if not os.path.exists(constants.INPUT_DIR.value):
+        os.mkdir(constants.INPUT_DIR.value)
 
     options = webdriver.ChromeOptions()
 
     # https://github.com/SeleniumHQ/selenium/issues/11637
     prefs = {
-        "download.default_directory": TMP_DIR,
+        "download.default_directory": constants.TMP_DATA_DIR.value,
         "download.prompt_for_download": False,
         "download.directory_upgrade": True,
         "safebrowsing.enabled": True,
@@ -134,91 +47,72 @@ def main(headless: bool = True):
         prefs,
     )
 
+    options.add_argument("--no-sandbox")
+    options.add_argument("--disable-gpu")
+    options.add_argument("--disable-dev-shm-usage")
+    options.add_argument("--crash-dumps-dir=/tmp")
+    options.add_argument("--remote-debugging-port=9222")
+    options.add_argument("--window-size=1920x1080")
+
     if headless:
         options.add_argument("--headless=new")
 
-    options.add_argument("--no-sandbox")
-    options.add_argument("--disable-gpu")
-    # options.add_argument("--window-size=1420,1080")
-    options.add_argument("--disable-dev-shm-usage")
-    # options.add_argument("--crash-dumps-dir=/tmp")
-    # options.add_argument("--user-data-dir=~/.config/google-chrome")
-    options.add_argument("--remote-debugging-port=9222")
-
-    # executable_path = f"{TMP_DIR}/chromedriver"
-
-    # mv /tmp/chromedriver /usr/local/bin/chromedriver
-
-    # os.system(f'mv {executable_path} /usr/bin/chromedriver')
-    # os.system('chmod +x /usr/bin/chromedriver')
-
-
-    # os.system(f"sudo chmod +x {executable_path}")
-    # os.system(f'cp {TMP_DIR}/chromedriver /usr/bin')
-
-    # print(f"{executable_path=}")
-
-    # service = Service(executable_path="/usr/bin/chromedriver")
-
     driver = webdriver.Chrome(options=options)
-    driver.get(TARGET)
+    driver.get(constants.TARGET.value)
 
-    # TODO(improve)
     time.sleep(10)
 
-    print("Done")
-    exit(0)
-
-    home_element = driver.find_element(By.XPATH, XPATHS["card_home_funcoes"])
+    home_element = driver.find_element(
+        By.XPATH, constants.XPATHS.value["card_home_funcoes"]
+    )
 
     assert home_element.is_displayed()
 
     home_element.click()
+    log("Card 'cargos e funções' clicked")
 
     time.sleep(15.0)
 
-    tab_tabelas_element = driver.find_element(By.XPATH, XPATHS["tabelas"])
+    tab_tabelas_element = driver.find_element(
+        By.XPATH, constants.XPATHS.value["tabelas"]
+    )
 
     assert tab_tabelas_element.is_displayed()
 
     tab_tabelas_element.click()
 
+    log("Tabelas button clicked")
+
     time.sleep(4)
 
-    # Campos da "seção" que não estão secionados
-    assert len(driver.find_elements(By.CLASS_NAME, "QvExcluded_LED_CHECK_363636")) == 18
-
-    # Cargos e Funções por padrão esta selecionado
-    assert len(driver.find_elements(By.CLASS_NAME, "QvSelected_LED_CHECK_363636")) == 2
-
-    # Estão duplicados pq tem duas div com a mesma classe
     selectables = driver.find_elements(By.CLASS_NAME, "QvOptional_LED_CHECK_363636")
-    assert len(selectables) == 50
 
     valid_selections = [
         selection
         for selection in selectables
         if selection.get_attribute("title")
-        in [*SELECTIONS_DIMENSIONS, *SELECTIONS_METRICS]
+        in [*constants.SELECTIONS_DIMENSIONS.value, *constants.SELECTIONS_METRICS.value]
     ]
-    assert len(valid_selections) == len(SELECTIONS)
+    assert len(valid_selections) == len(
+        [*constants.SELECTIONS_DIMENSIONS.value, *constants.SELECTIONS_METRICS.value]
+    )
 
-    # NOTE: nem sempre mes e cargos esta selecionado
+    # NOTE: Nem sempre 'Mês e Cargos' esta selecionado
     first_selection_title = valid_selections[0].get_attribute("title")
     valid_selections[0].click()
-    print(f"{first_selection_title=}")
+    log(f"Selected {first_selection_title}")
 
-    # TODO(improve): DOM changes
+    # Wait for DOM changes
     time.sleep(5)
 
     # NOTE: Em cada seleção o DOM sofre alterações. Para cada click é
     # preciso buscar os mesmo elementos e filtrar.
     # Embora a classe seja a mesma as referências são diferentes
-    _, *rest_dimensions_selections = SELECTIONS_DIMENSIONS
+    _, *rest_dimensions_selections = constants.SELECTIONS_DIMENSIONS.value
     dimensions_selected: list[str] = []
 
     for _ in range(0, len(rest_dimensions_selections)):
-        # DOM changes
+        # Wait for DOM changes
         time.sleep(5.0)
         elements = driver.find_elements(By.CLASS_NAME, "QvExcluded_LED_CHECK_363636")
         head, *_ = [
@@ -233,10 +127,10 @@ def main(headless: bool = True):
 
         head.click()
         dimensions_selected.append(year_title)
-        # print(f"Click for {year_title=}")
 
-    print(f"Selections for dimensions, {dimensions_selected=}")
+    log(f"Selections for dimensions, {dimensions_selected=}")
 
+    # Wait for DOM Changes
     time.sleep(5.0)
 
     metrics_selection = [
@@ -246,17 +140,16 @@ def main(headless: bool = True):
         )
         if selection.get_attribute("title") == "CCE & FCE"
     ]
-    print(f"{metrics_selection}")
     metrics_selection[0].click()
-    print("CCE &  FCE clicked")
+    log("CCE &  FCE clicked")
 
     time.sleep(3.0)
 
-    _, *rest_metrics_selections = SELECTIONS_METRICS
+    _, *rest_metrics_selections = constants.SELECTIONS_METRICS.value
     metrics_selected: list[str] = []
 
     for _ in range(0, len(rest_metrics_selections)):
-        # DOM changes
+        # Wait for DOM changes
         time.sleep(5.0)
         elements = driver.find_elements(By.CLASS_NAME, "QvExcluded_LED_CHECK_363636")
         head, *_ = [
@@ -271,10 +164,10 @@ def main(headless: bool = True):
 
         head.click()
         metrics_selected.append(metric_title)
-        # print(f"Click for {year_title=}")
 
-    print(f"Selections for metrics, {metrics_selected=}")
+    log(f"Selections for metrics, {metrics_selected=}")
 
+    # Wait for DOM changes
     time.sleep(3.0)
 
     def open_menu_years():
@@ -298,7 +191,7 @@ def main(headless: bool = True):
             if title is not None and int(title) == year:
                 return e
 
-        raise Exception(f"Failed to select year {year}. Found {elements=}")
+        raise Exception(f"Failed to select year {year}. Found {len(elements)}")
 
     def wait_hide_popup_element():
         popup_element_visible = True
@@ -313,15 +206,12 @@ def main(headless: bool = True):
             if len(elements_visible) == 0:
                 break
 
-        return True
-
-    year_star = 2022
-    year_end = 2023
-
-    years = range(year_star, year_end + 1)
+    years = range(year_start, year_end + 1)
 
     for year in years:
         time.sleep(3.0)
+
+        log(f"Starting download process for {year}")
 
         open_menu_years()
 
@@ -341,13 +231,18 @@ def main(headless: bool = True):
 
         download[0].click()
 
+        log(f"Waiting for download {year}")
         if wait_file_download(year):
-            move_to_downloads(year)
-            print(f"Download done for {year}")
+            move_from_tmp_dir(year)
+
+            log(f"Downloaded file for {year}")
+
             modal = driver.find_element(By.CLASS_NAME, "ModalDialog")
             modal.click()
-            print("Modal Clicked")
+            log("Modal Clicked")
+
             wait_hide_popup_element()
+
             remove_selected_year = [
                 e
                 for e in driver.find_elements(By.CLASS_NAME, "QvSelected")
@@ -355,15 +250,12 @@ def main(headless: bool = True):
                 and e.get_attribute("title") == str(year)
             ]
             remove_selected_year[0].click()
-
-            continue
+            log(f"Removed selected year {year}")
         else:
             raise Exception(f"Failed to download xlsx for {year}")
 
-    time.sleep(2.0)
-    print("Done")
+    log(f"Done. Files: {os.listdir(constants.INPUT_DIR.value)}")
 
-    print(f"Files: {os.listdir(DOWNLOAD_DIR)}")
     driver.close()
 
 
@@ -373,4 +265,7 @@ if __name__ == "__main__":
 
     setup_web_driver()
 
-    main(headless=headless)
+    main(headless=headless, year_start=1999, year_end=2001)
+
+    files = os.listdir(constants.OUTPUT_DIR.value)
+    log(f"Files: {files}")
