@@ -4,14 +4,13 @@ import time
 import requests
 import zipfile
 import io
-import datetime
-
+from datetime import datetime
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 
 from constants import constants
-
 from utils import wait_file_download, move_from_tmp_dir, log
+
 
 def setup_web_driver() -> None:
     r = requests.get(constants.CHROME_DRIVER.value, stream=True)
