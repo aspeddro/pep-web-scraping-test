@@ -46,12 +46,13 @@ def main(
         prefs,
     )
 
-    # options.add_argument("--no-sandbox")
+    options.add_argument("--no-sandbox")
     options.add_argument("--disable-gpu")
     options.add_argument("--disable-dev-shm-usage")
     options.add_argument("--crash-dumps-dir=/tmp")
     options.add_argument("--remote-debugging-port=9222")
-    options.add_argument("--window-size=1920x1080")
+    # IMPORTANT: A resolucao afeta a renderizacao dos elementos
+    options.add_argument("--window-size=1920,1080")
 
     if headless:
         options.add_argument("--headless=new")
@@ -189,8 +190,10 @@ def main(
             title = e.get_attribute("title")
             if title is not None and int(title) == year:
                 return e
+            
+        elements_title = [i.get_attribute("title") for i in elements]
 
-        raise Exception(f"Failed to select year {year}. Found {len(elements)}")
+        raise Exception(f"Failed to select year {year}. Found {len(elements_title)} elements, {elements_title}")
 
     def wait_hide_popup_element():
         popup_element_visible = True
@@ -264,7 +267,7 @@ if __name__ == "__main__":
 
     setup_web_driver()
 
-    main(headless=False, year_start=1999, year_end=2001)
+    main(headless=headless, year_start=1999, year_end=2001)
 
     files = os.listdir(constants.OUTPUT_DIR.value)
     log(f"Files: {files}")

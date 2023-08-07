@@ -4,3 +4,4 @@ input
 tmp
 output
 downloads
+__pycache__
