@@ -1,8 +1,12 @@
-from logging import raiseExceptions
 import sys
 import os
 import time
+import requests
+import zipfile
+import io
+import pandas as pd
 from selenium import webdriver
+from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
 
 TARGET = "http://painel.pep.planejamento.gov.br/QvAJAXZfc/opendoc.htm?document=painelpep.qvw&lang=en-US&host=Local&anonymous=true"
@@ -11,7 +15,7 @@ XPATHS = {
     # Cargos e Funções
     "card_home_funcoes": "/html/body/div[5]/div/div[88]",
     # Aba Tabelas
-    "tabelas": "/html/body/div[5]/div/div[280]/div[3]/table/tbody/tr/td"
+    "tabelas": "/html/body/div[5]/div/div[280]/div[3]/table/tbody/tr/td",
 }
 
 SELECTIONS = [
@@ -58,6 +62,27 @@ CWD = os.path.dirname(os.path.realpath(__file__))
 TMP_DIR = os.path.join(CWD, "tmp")
 DOWNLOAD_DIR = os.path.join(CWD, "downloads")
 
+CHROME_DRIVER = (
+    "https://chromedriver.storage.googleapis.com/114.0.5735.90/chromedriver_linux64.zip"
+)
+
+
+def setup_web_driver() -> None:
+    r = requests.get(CHROME_DRIVER, stream=True)
+    with zipfile.ZipFile(io.BytesIO(r.content)) as z:
+        z.extractall(TMP_DIR)
+
+    os.environ["PATH"] += os.pathsep + TMP_DIR
+
+    path = os.environ["PATH"]
+
+    files = os.listdir(TMP_DIR)
+
+    print(files)
+
+    print(f"Setup Web Driver done: {path}")
+
+
 def wait_file_download(year, timeout=60 * 6):
     start_time = time.time()
     end_time = start_time + timeout
@@ -74,6 +99,7 @@ def wait_file_download(year, timeout=60 * 6):
         continue
 
     return True
+
 
 def move_to_downloads(year: int) -> bool:
     files = os.listdir(TMP_DIR)
@@ -111,11 +137,37 @@ def main(headless: bool = True):
     if headless:
         options.add_argument("--headless=new")
 
+    options.add_argument("--no-sandbox")
+    options.add_argument("--disable-gpu")
+    # options.add_argument("--window-size=1420,1080")
+    options.add_argument("--disable-dev-shm-usage")
+    # options.add_argument("--crash-dumps-dir=/tmp")
+    # options.add_argument("--user-data-dir=~/.config/google-chrome")
+    options.add_argument("--remote-debugging-port=9222")
+
+    # executable_path = f"{TMP_DIR}/chromedriver"
+
+    # mv /tmp/chromedriver /usr/local/bin/chromedriver
+
+    # os.system(f'mv {executable_path} /usr/bin/chromedriver')
+    # os.system('chmod +x /usr/bin/chromedriver')
+
+
+    # os.system(f"sudo chmod +x {executable_path}")
+    # os.system(f'cp {TMP_DIR}/chromedriver /usr/bin')
+
+    # print(f"{executable_path=}")
+
+    # service = Service(executable_path="/usr/bin/chromedriver")
+
     driver = webdriver.Chrome(options=options)
     driver.get(TARGET)
 
     # TODO(improve)
     time.sleep(10)
+
+    print("Done")
+    exit(0)
 
     home_element = driver.find_element(By.XPATH, XPATHS["card_home_funcoes"])
 
@@ -246,9 +298,7 @@ def main(headless: bool = True):
             if title is not None and int(title) == year:
                 return e
 
-        raise Exception(
-            f"Failed to select year {year}. Found {elements=}"
-        )
+        raise Exception(f"Failed to select year {year}. Found {elements=}")
 
     def wait_hide_popup_element():
         popup_element_visible = True
@@ -320,4 +370,7 @@ def main(headless: bool = True):
 if __name__ == "__main__":
     _, *args = sys.argv
     headless = "--headless" in args
+
+    setup_web_driver()
+
     main(headless=headless)
