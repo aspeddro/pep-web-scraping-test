@@ -265,9 +265,10 @@ if __name__ == "__main__":
     _, *args = sys.argv
     headless = "--headless" in args
 
-    setup_web_driver()
+    r = requests.get("http://painel.pep.planejamento.gov.br/QvAjaxZfc/QvsViewClient.aspx?public=only&size=long&host=Local&name=Temp/75c80bde121f4388b893812028a3c4c9.xlsx")
+    print(r)
+    print(r.headers)
 
-    main(headless=headless, year_start=1999, year_end=2001)
+    # setup_web_driver()
 
-    files = os.listdir(constants.OUTPUT_DIR.value)
-    log(f"Files: {files}")
+    # main(headless=headless, year_start=1999, year_end=2001)
