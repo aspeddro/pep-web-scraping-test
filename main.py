@@ -15,7 +15,7 @@ def main(headless=True):
     __cf_bm = driver.get_cookie("__cf_bm")["value"]
     _cfuvid = driver.get_cookie("_cfuvid")["value"]
 
-    print(__cf_bm, _cfuvid)
+    print(f"{__cf_bm=}, {_cfuvid=}")
     
     r = requests.head(
         "https://www.anatel.gov.br/dadosabertos/paineis_de_dados/acessos/acessos_banda_larga_fixa.zip",
